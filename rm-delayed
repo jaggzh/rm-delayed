@@ -1,0 +1,52 @@
+#!/bin/bash
+
+config_path="${HOME}/.config/rm-delayed.conf"
+source "${config_path}"
+
+function check_filesystem_and_trash() {
+    filepath="$1"
+    fs="$(df --output=target "$filepath" | tail -1)"
+
+    if [[ -z "${fss["$fs"]}" ]]; then
+        echo "Error: No temporary trash directory configured for the filesystem \"$fs\". Please use 'rm-delayed-dest-set' to set a temporary trash directory for this filesystem."
+        return 1
+    fi
+
+    return 0
+}
+
+# Process the input arguments
+while getopts ":frRvd" opt; do
+    case $opt in
+        f) force=1 ;;
+        r) recursive=1 ;;
+        R) recursive=1 ;;
+        v) verbose=1 ;;
+        d) dir=1 ;;
+        *) echo "Invalid option: -$OPTARG" >&2; exit 1 ;;
+    esac
+done
+shift $((OPTIND-1))
+
+# First pass: check for missing trash destinations
+for filepath in "$@"; do
+    if ! check_filesystem_and_trash "$filepath"; then
+        exit 1
+    fi
+done
+
+# Second pass: move files to trash
+for filepath in "$@"; do
+    trash_dir="${fss["$(df --output=target "$filepath" | tail -1)"]}"
+    mv_flags=""
+    [[ $force -eq 1 ]] && mv_flags="-f"
+    [[ $recursive -eq 1 ]] && mv_flags="$mv_flags -r"
+    [[ $verbose -eq 1 ]] && mv_flags="$mv_flags -v"
+
+    # Move the file to the trash directory
+    mv $mv_flags "$filepath" "$trash_dir"
+
+    # Create and store the metadata
+    metadata_file="$trash_dir/$(basename "$filepath").metadata"
+    stat --printf="original_mtime=%Y\noriginal_atime=%X\noriginal_ctime=%Z\nmoved_to_trash_time=$(date +%s)\n" "$filepath" > "$metadata_file"
+done

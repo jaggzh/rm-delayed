@@ -1,0 +1,18 @@
+#!/bin/bash
+
+config_dir="$HOME/.config/"
+config_path="$config_dir/.config/rm-delayed.conf"
+
+mount_path="$1"
+trash_dir="$2"
+
+if [[ -z "$mount_path" || -z "$trash_dir" ]]; then
+    echo "Usage: rm-delayed-dest-set.sh <mount_path> <trash_directory>"
+    exit 1
+fi
+
+# Add or update the trash directory for the specified mount path
+sed -i "/^fss\['$mount_path'\]=/d" "${config_path}"
+echo "fss['$mount_path']='$trash_dir'" >> "${config_path}"
+
+echo "Temporary trash directory for the mount path '$mount_path' set to '$trash_dir'"
